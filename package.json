@@ -1,6 +1,6 @@
 {
   "name": "vmactions-AlmaLinux",
-  "version": "",
+  "version": "1.0.0",
   "description": "GitHub actions for AlmaLinux",
   "type": "module",
   "main": "index.js",
