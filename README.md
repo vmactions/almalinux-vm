@@ -1,6 +1,6 @@
-# Run GitHub CI in OpenEuler 
+# Run GitHub CI in AlmaLinux 
 
-![Test](https://github.com/vmactions/openeuler-vm/workflows/Test/badge.svg)
+![Test](https://github.com/vmactions/almalinux-vm/workflows/Test/badge.svg)
 
 
 
@@ -15,7 +15,7 @@ Powered by [AnyVM.org](https://anyvm.org)
 >
 > These VMs are now AI-ready. With the **[vmactions-ci skill](https://github.com/vmactions/vmactions-skill)**, an AI coding agent -- Claude Code, Codex, Copilot CLI, Gemini CLI, and others -- understands the full vmactions interface and writes the GitHub Actions CI for you, **automatically**.
 >
-> Just describe what you want in plain language, e.g. *"run my tests on OpenEuler"* or *"check that my project builds on OpenEuler aarch64"*, and the agent generates a correct, ready-to-commit `test.yml`. It will:
+> Just describe what you want in plain language, e.g. *"run my tests on AlmaLinux"* or *"check that my project builds on AlmaLinux aarch64"*, and the agent generates a correct, ready-to-commit `test.yml`. It will:
 >
 > - pick the right action, `release`, and `arch` for your target;
 > - install your toolchain and dependencies in the `prepare` step;
@@ -27,23 +27,49 @@ Powered by [AnyVM.org](https://anyvm.org)
 >
 > ### >> [Get the vmactions-ci skill](https://github.com/vmactions/vmactions-skill) <<
 
-Use this action to run your CI in OpenEuler.
+Use this action to run your CI in AlmaLinux.
 
-The github workflow only supports Ubuntu, Windows and MacOS. But what if you need to use OpenEuler?
+The github workflow only supports Ubuntu, Windows and MacOS. But what if you need to use AlmaLinux?
 
 
 All the supported releases are here:
 
 
 
-| Release | x86_64 (amd64) | aarch64 (arm64) | riscv64 | loongarch64 |
+| Release | x86_64 | aarch64 | s390x | ppc64le |
 |---------|---------|---------|---------|---------|
-| 25.09 | ✅ (rsync,scp,sshfs,nfs,tar) | ✅ (rsync,scp,sshfs,nfs,tar) | ✅ (rsync,scp,nfs,tar) | — |
-| 24.03-LTS-SP4 | ✅ (rsync,scp,sshfs,nfs,tar) | ✅ (rsync,scp,sshfs,nfs,tar) | — | ✅ (rsync,scp,sshfs,nfs,tar) |
-| 22.03-LTS-SP4 | ✅ (rsync,scp,sshfs,nfs,tar) | ✅ (rsync,scp,sshfs,nfs,tar) | — | — |
+| 10 | ✅ (rsync,scp,nfs,tar) | ✅ (rsync,scp,nfs,tar) | ✅ (rsync,scp,nfs,tar) | ✅ (rsync,scp,nfs,tar) |
+| 9 | ✅ (rsync,scp,nfs,tar) | ✅ (rsync,scp,nfs,tar) | ✅ (rsync,scp,nfs,tar) | — |
 
-<!-- arch-label: x86_64 = x86_64 (amd64) -->
-<!-- arch-label: aarch64 = aarch64 (arm64) -->
+
+No `sshfs` cell is listed for any release: `fuse-sshfs` is not packaged in
+AlmaLinux's BaseOS or AppStream for 9 or 10 (it lives in EPEL), and a base
+image should not carry a third-party repository. `rsync`, `nfs-utils` and
+`tree` are all in BaseOS, so every other sync method listed above is real.
+
+There is no 9 `ppc64le` image even though upstream publishes one. Under
+QEMU TCG that guest boots to a login prompt and then loses cloud-init to a
+deterministic SIGSEGV inside `libpython3.9.so.1.0` -- every restart faults
+at the same instruction address -- so the network is never configured and
+sshd is never reachable (CI run 32710687202, cancelled after 62 minutes).
+The fault is specific to the CPython 3.9 / ppc64le / TCG combination:
+9 `aarch64` and 9 `s390x` run the same Python 3.9 and build fine, and 10
+`ppc64le` (Python 3.12) builds fine on the same emulated architecture. It
+is an upstream-image-meets-emulator defect, not a builder configuration
+one, so the release is simply not offered rather than shipped broken.
+
+How the images are built:
+
+Each image is built automatically in the
+[anyvm-org/almalinux-builder](https://github.com/anyvm-org/almalinux-builder)
+repo's GitHub Actions: it downloads the official AlmaLinux GenericCloud
+image, customizes it (serial console, ssh, first-boot setup), boots it
+in QEMU, pre-installs the packages listed in the conf, and exports the
+disk as a compressed qcow2 image. No interactive installer is run.
+
+Upstream media: the official AlmaLinux cloud images from
+https://repo.almalinux.org/almalinux/ (download page:
+https://almalinux.org/get-almalinux/).
 
 
 
@@ -60,19 +86,19 @@ on: [push]
 jobs:
   test:
     runs-on: ubuntu-latest
-    name: A job to run test in OpenEuler
+    name: A job to run test in AlmaLinux
     env:
       MYTOKEN : ${{ secrets.MYTOKEN }}
       MYTOKEN2: "value2"
     steps:
     - uses: actions/checkout@v7
-    - name: Test in OpenEuler
+    - name: Test in AlmaLinux
       id: test
-      uses: vmactions/openeuler-vm@v1
+      uses: vmactions/almalinux-vm@v0
       with:
         envs: 'MYTOKEN MYTOKEN2'
         prepare: |
-          dnf install -y curl
+          dnf install -y socat
 
         run: |
           pwd
@@ -80,7 +106,6 @@ jobs:
           whoami
           env
           uname -a
-          cat /etc/os-release
           nproc
           echo "OK"
 
@@ -91,7 +116,7 @@ jobs:
 ```
 
 
-The latest major version is: `v1`, which is the most recommended to use. (You can also use the latest full version: `v1.0.0`)  
+The latest major version is: `v0`, which is the most recommended to use. (You can also use the latest full version: `v0.0.0`)  
 
 
 If you are migrating from the previous `v0`, please change the `runs-on: ` to `runs-on: ubuntu-latest`
@@ -128,7 +153,7 @@ The code is shared from the host to the VM via `rsync` by default, you can choos
 
     - name: Test
       id: test
-      uses: vmactions/openeuler-vm@v1
+      uses: vmactions/almalinux-vm@v0
       with:
         sync: sshfs  # or: nfs
 
@@ -150,7 +175,7 @@ When using `rsync` or `scp`,  you can define `copyback: false` to not copy files
 
     - name: Test
       id: test
-      uses: vmactions/openeuler-vm@v1
+      uses: vmactions/almalinux-vm@v0
       with:
         sync: rsync
         copyback: false
@@ -164,11 +189,6 @@ When using `rsync` or `scp`,  you can define `copyback: false` to not copy files
 
 
 
-Becareful:
-
-If you use `arch: riscv64`, `sync: sshfs` is not available: the openEuler 25.09 riscv64 port ships no `fuse-sshfs` package at all. Use `rsync` (the default), `nfs` or `scp` instead.
-
-
 
 ## 3. NAT from host runner to the VM
 
@@ -178,7 +198,7 @@ You can add NAT port between the host and the VM.
 ...
     - name: Test
       id: test
-      uses: vmactions/openeuler-vm@v1
+      uses: vmactions/almalinux-vm@v0
       with:
         nat: |
           "8080": "80"
@@ -197,7 +217,7 @@ The default memory of the VM is 6144MB, you can use `mem` option to set the memo
 ...
     - name: Test
       id: test
-      uses: vmactions/openeuler-vm@v1
+      uses: vmactions/almalinux-vm@v0
       with:
         mem: 4096
 ...
@@ -211,7 +231,7 @@ The VM is using all the cpu cores of the host by default, you can use `cpu` opti
 ...
     - name: Test
       id: test
-      uses: vmactions/openeuler-vm@v1
+      uses: vmactions/almalinux-vm@v0
       with:
         cpu: 3
 ...
@@ -220,31 +240,18 @@ The VM is using all the cpu cores of the host by default, you can use `cpu` opti
 
 ## 5. Select release
 
-It uses [the OpenEuler 24.03-LTS-SP4](conf/default.release.conf) by default, you can use `release` option to use another version of OpenEuler:
+It uses [the AlmaLinux 10](conf/default.release.conf) by default, you can use `release` option to use another version of AlmaLinux:
 
 ```yaml
 ...
     - name: Test
       id: test
-      uses: vmactions/openeuler-vm@v1
+      uses: vmactions/almalinux-vm@v0
       with:
-        release: "25.09"
+        release: "9"
 ...
 ```
 
-You can also give only the leading, `.` separated part of a release. The newest release that starts with it is used, so the workflow does not have to be edited for every point release:
-
-```yaml
-...
-    - name: Test
-      id: test
-      uses: vmactions/openeuler-vm@v1
-      with:
-        release: "24"
-...
-```
-
-Here `release: "24"` runs the newest `24.x` release of OpenEuler. Every leading part works the same way, this action ships 22, 24, 25. Each part you give has to match in full, so a release that does not exist fails the job instead of quietly falling back to another one.
 
 ## 6. Select architecture
 
@@ -254,7 +261,7 @@ The vm is using x86_64(AMD64) by default, but you can use `arch` option to chang
 ...
     - name: Test
       id: test
-      uses: vmactions/openeuler-vm@v1
+      uses: vmactions/almalinux-vm@v0
       with:
         arch: aarch64
 ...
@@ -264,11 +271,6 @@ When you run with `aarch64`, the host runner should still be the normal `x86_64`
 
 It's not recommended to use `ubuntu-24.04-arm` as runner, it's much more slower.
 
-
-
-Not every release ships every architecture (see the release table above): `arch: riscv64` is only available with `release: "25.09"`, and `arch: loongarch64` is only available with `release: "24.03-LTS-SP4"`.
-
-`aarch64`, `riscv64` and `loongarch64` all run under QEMU emulation on the x86_64 runner, so they are much slower than `x86_64`.
 
 
 ## 7. Custom shell
@@ -281,16 +283,16 @@ Support custom shell:
     - uses: actions/checkout@v7
     - name: Start VM
       id: vm
-      uses: vmactions/openeuler-vm@v1
+      uses: vmactions/almalinux-vm@v0
       with:
         sync: nfs
     - name: Custom shell step 1
-      shell: openeuler {0}
+      shell: almalinux {0}
       run: |
         pwd
         echo "this is step 1, running inside the VM"
     - name: Custom shell step 2
-      shell: openeuler {0}
+      shell: almalinux {0}
       run: |
         pwd
         echo "this is step 2, running inside the VM"
@@ -312,7 +314,7 @@ You can also use `custom-shell-name` to set a custom name for the shell wrapper:
     - uses: actions/checkout@v7
     - name: Start VM
       id: vm
-      uses: vmactions/openeuler-vm@v1
+      uses: vmactions/almalinux-vm@v0
       with:
         sync: nfs
         custom-shell-name: vmsh
@@ -338,7 +340,7 @@ If the time in VM is not correct, You can use `sync-time` option to synchronize 
 ...
     - name: Test
       id: test
-      uses: vmactions/openeuler-vm@v1
+      uses: vmactions/almalinux-vm@v0
       with:
         sync-time: true
 ...
@@ -353,7 +355,7 @@ By default, the action caches `apt` packages on the host and VM images/artifacts
 ...
     - name: Test
       id: test
-      uses: vmactions/openeuler-vm@v1
+      uses: vmactions/almalinux-vm@v0
       with:
         disable-cache: true
 ...
@@ -368,11 +370,11 @@ The `prepare` step (installing packages etc.) normally runs on every build. With
 ...
     - name: Test
       id: test
-      uses: vmactions/openeuler-vm@v1
+      uses: vmactions/almalinux-vm@v0
       with:
         cache-after-prepare: true
         prepare: |
-          dnf install -y curl
+          dnf install -y socat
         run: |
           ...
 ...
@@ -401,7 +403,7 @@ Then use it in the workflow:
 ...
     - name: Test
       id: test
-      uses: vmactions/openeuler-vm@v1
+      uses: vmactions/almalinux-vm@v0
       with:
         debug-on-error: ${{ vars.DEBUG_ON_ERROR }}
 
@@ -414,7 +416,7 @@ You can also set the `vnc-password` parameter to set a custom password to protec
 ...
     - name: Test
       id: test
-      uses: vmactions/openeuler-vm@v1
+      uses: vmactions/almalinux-vm@v0
       with:
         debug-on-error: ${{ vars.DEBUG_ON_ERROR }}
         vnc-password: ${{ secrets.VNC_PASSWORD }}
@@ -431,7 +433,7 @@ See more: [debug on error](https://github.com/vmactions/.github/wiki/debug%E2%80
 
 # Under the hood
 
-We use Qemu to run the OpenEuler VM.
+We use Qemu to run the AlmaLinux VM.
 
 
 
